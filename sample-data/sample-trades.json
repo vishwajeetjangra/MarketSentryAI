@@ -1,0 +1,47 @@
+[
+  {
+    "tradeId": "TRX1001",
+    "traderId": "T1001",
+    "stock": "AAPL",
+    "side": "BUY",
+    "quantity": 500,
+    "price": 192.45,
+    "timestamp": "2026-05-17T10:15:30"
+  },
+  {
+    "tradeId": "TRX1002",
+    "traderId": "T1001",
+    "stock": "AAPL",
+    "side": "SELL",
+    "quantity": 500,
+    "price": 192.60,
+    "timestamp": "2026-05-17T10:15:32"
+  },
+  {
+    "tradeId": "TRX1003",
+    "traderId": "T2001",
+    "stock": "TSLA",
+    "side": "BUY",
+    "quantity": 2000,
+    "price": 245.80,
+    "timestamp": "2026-05-17T10:15:35"
+  },
+  {
+    "tradeId": "TRX1004",
+    "traderId": "T1002",
+    "stock": "NVDA",
+    "side": "BUY",
+    "quantity": 100,
+    "price": 875.50,
+    "timestamp": "2026-05-17T10:15:40"
+  },
+  {
+    "tradeId": "TRX1005",
+    "traderId": "T1001",
+    "stock": "AAPL",
+    "side": "BUY",
+    "quantity": 800,
+    "price": 192.55,
+    "timestamp": "2026-05-17T10:15:42"
+  }
+]

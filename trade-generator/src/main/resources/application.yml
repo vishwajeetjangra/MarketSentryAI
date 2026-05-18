@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: trade-generator
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    health:
+      show-details: always
+
+marketsentry:
+  kafka:
+    topics:
+      trade-events: trade-events
+  generator:
+    rate-ms: 500
+    anomaly-injection:
+      enabled: false       # set to true to trigger surveillance rules
+      burst-rate-ms: 60000
+      volume-rate-ms: 90000
+      reversal-rate-ms: 75000

@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: ai-summarizer
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: ai-summarizer-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+  datasource:
+    url: jdbc:postgresql://localhost:5432/marketsentry
+    username: marketsentry
+    password: marketsentry
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: false
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    health:
+      show-details: always
+
+marketsentry:
+  kafka:
+    topics:
+      surveillance-alerts: surveillance-alerts
+  ollama:
+    url: http://localhost:11434
+    model: mistral:7b
+    connect-timeout-ms: 5000
+    read-timeout-ms: 60000

@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: marketsentry-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - marketsentry-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: marketsentry-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - marketsentry-net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: marketsentry-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: marketsentry
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - marketsentry-net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: marketsentry-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - marketsentry-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: marketsentry-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: marketsentry
+      POSTGRES_USER: marketsentry
+      POSTGRES_PASSWORD: marketsentry
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - marketsentry-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: marketsentry-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - marketsentry-net
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: marketsentry-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - marketsentry-net
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: marketsentry-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - marketsentry-net
+
+volumes:
+  postgres-data:
+  ollama-data:
+  grafana-data:
+
+networks:
+  marketsentry-net:
+    driver: bridge
