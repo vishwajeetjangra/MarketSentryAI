@@ -70,7 +70,10 @@ public class TradeGeneratorService {
     private static final BigDecimal PRICE_FLOOR = new BigDecimal("1.00");
 
     private final Random random = new Random();
-    private final AtomicLong tradeCounter = new AtomicLong(1000);
+    // Counter is per-JVM-run; the startInstantMs prefix guarantees no PK
+    // collisions with trades persisted by a previous run.
+    private final long startInstantMs = System.currentTimeMillis();
+    private final AtomicLong tradeCounter = new AtomicLong(0);
 
     // Runtime-controllable scheduling state
     private volatile long rateMs;
@@ -135,7 +138,7 @@ public class TradeGeneratorService {
         return Map.of(
                 "running", isRunning(),
                 "rateMs", rateMs,
-                "tradesProduced", tradeCounter.get() - 1000,
+                "tradesProduced", tradeCounter.get(),
                 "trackedStocks", currentPrices.size()
         );
     }
@@ -151,7 +154,7 @@ public class TradeGeneratorService {
         BigDecimal price = nextPrice(stock);
 
         return TradeEvent.builder()
-                .tradeId("TRX" + tradeCounter.incrementAndGet())
+                .tradeId("TRX-" + startInstantMs + "-" + tradeCounter.incrementAndGet())
                 .traderId(TRADERS.get(random.nextInt(TRADERS.size())))
                 .stock(stock)
                 .side(random.nextBoolean() ? TradeEvent.TradeSide.BUY : TradeEvent.TradeSide.SELL)

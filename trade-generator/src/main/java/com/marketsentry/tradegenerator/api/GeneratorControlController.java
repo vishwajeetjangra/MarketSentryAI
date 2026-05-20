@@ -1,5 +1,6 @@
 package com.marketsentry.tradegenerator.api;
 
+import com.marketsentry.tradegenerator.service.AnomalyInjectorService;
 import com.marketsentry.tradegenerator.service.TradeGeneratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import java.util.Map;
 public class GeneratorControlController {
 
     private final TradeGeneratorService generator;
+    private final AnomalyInjectorService anomalyInjector;
 
     @GetMapping("/status")
     public Map<String, Object> status() {
@@ -34,5 +36,37 @@ public class GeneratorControlController {
     public Map<String, Object> setRate(@RequestParam long ms) {
         generator.setRate(ms);
         return Map.of("action", "setRate", "status", generator.status());
+    }
+
+    /**
+     * On-demand anomaly injection.
+     *   POST /generator/inject/HIGH_FREQUENCY
+     *   POST /generator/inject/VOLUME_SPIKE?trader=T9002
+     *   POST /generator/inject/REVERSAL
+     *
+     * Invalid rule names get a 400 automatically from Spring's enum conversion.
+     */
+    @PostMapping("/inject/{rule}")
+    public Map<String, Object> inject(
+            @PathVariable AnomalyRule rule,
+            @RequestParam(required = false) String trader) {
+
+        String usedTrader = switch (rule) {
+            case HIGH_FREQUENCY -> anomalyInjector.injectHighFrequencyBurst(trader);
+            case VOLUME_SPIKE   -> anomalyInjector.injectVolumeSpike(trader);
+            case REVERSAL       -> anomalyInjector.injectRapidReversals(trader);
+        };
+
+        return Map.of(
+                "rule", rule.name(),
+                "traderId", usedTrader,
+                "requestedTrader", trader != null ? trader : "random"
+        );
+    }
+
+    public enum AnomalyRule {
+        HIGH_FREQUENCY,
+        VOLUME_SPIKE,
+        REVERSAL
     }
 }

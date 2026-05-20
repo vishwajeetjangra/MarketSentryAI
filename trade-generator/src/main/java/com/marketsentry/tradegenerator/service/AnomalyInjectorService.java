@@ -4,9 +4,7 @@ import com.marketsentry.tradegenerator.model.TradeEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -16,13 +14,15 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Periodically injects anomalous trading patterns to trigger surveillance rules.
- * Enabled via marketsentry.generator.anomaly-injection.enabled=true.
+ * Publishes anomalous trading patterns that will trigger surveillance rules.
+ *
+ * The methods are public and accept an explicit traderId so they can be called
+ * from a schedule (ScheduledAnomalyInjector) OR directly from a REST endpoint
+ * (GeneratorControlController). Pass null/blank to pick a random anomaly trader.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "marketsentry.generator.anomaly-injection.enabled", havingValue = "true")
 public class AnomalyInjectorService {
 
     private final KafkaTemplate<String, TradeEvent> kafkaTemplate;
@@ -34,18 +34,18 @@ public class AnomalyInjectorService {
     private static final List<String> STOCKS = List.of("AAPL", "TSLA", "NVDA");
 
     private final Random random = new Random();
-    private final AtomicLong counter = new AtomicLong(9000);
+    private final long startInstantMs = System.currentTimeMillis();
+    private final AtomicLong counter = new AtomicLong(0);
 
-    /** Inject a high-frequency burst — fires every 60 seconds */
-    @Scheduled(fixedRateString = "${marketsentry.generator.anomaly-injection.burst-rate-ms:60000}")
-    public void injectHighFrequencyBurst() {
-        String traderId = ANOMALY_TRADERS.get(random.nextInt(ANOMALY_TRADERS.size()));
+    /** @return the trader the burst was attributed to */
+    public String injectHighFrequencyBurst(String requestedTrader) {
+        String traderId = resolveTrader(requestedTrader);
         String stock = STOCKS.get(random.nextInt(STOCKS.size()));
         log.warn("Injecting HIGH_FREQUENCY_SPIKE for trader: {}", traderId);
 
         for (int i = 0; i < 35; i++) {
             TradeEvent trade = TradeEvent.builder()
-                    .tradeId("ANO" + counter.incrementAndGet())
+                    .tradeId(nextId())
                     .traderId(traderId)
                     .stock(stock)
                     .side(i % 2 == 0 ? TradeEvent.TradeSide.BUY : TradeEvent.TradeSide.SELL)
@@ -55,16 +55,15 @@ public class AnomalyInjectorService {
                     .build();
             kafkaTemplate.send(tradeEventsTopic, traderId, trade);
         }
+        return traderId;
     }
 
-    /** Inject a volume spike — fires every 90 seconds */
-    @Scheduled(fixedRateString = "${marketsentry.generator.anomaly-injection.volume-rate-ms:90000}")
-    public void injectVolumeSpike() {
-        String traderId = ANOMALY_TRADERS.get(random.nextInt(ANOMALY_TRADERS.size()));
+    public String injectVolumeSpike(String requestedTrader) {
+        String traderId = resolveTrader(requestedTrader);
         log.warn("Injecting VOLUME_SPIKE for trader: {}", traderId);
 
         TradeEvent trade = TradeEvent.builder()
-                .tradeId("ANO" + counter.incrementAndGet())
+                .tradeId(nextId())
                 .traderId(traderId)
                 .stock("TSLA")
                 .side(TradeEvent.TradeSide.BUY)
@@ -73,18 +72,17 @@ public class AnomalyInjectorService {
                 .timestamp(LocalDateTime.now())
                 .build();
         kafkaTemplate.send(tradeEventsTopic, traderId, trade);
+        return traderId;
     }
 
-    /** Inject rapid buy/sell reversals — fires every 75 seconds */
-    @Scheduled(fixedRateString = "${marketsentry.generator.anomaly-injection.reversal-rate-ms:75000}")
-    public void injectRapidReversals() {
-        String traderId = ANOMALY_TRADERS.get(random.nextInt(ANOMALY_TRADERS.size()));
+    public String injectRapidReversals(String requestedTrader) {
+        String traderId = resolveTrader(requestedTrader);
         log.warn("Injecting RAPID_BUY_SELL_REVERSAL for trader: {}", traderId);
 
         TradeEvent.TradeSide side = TradeEvent.TradeSide.BUY;
         for (int i = 0; i < 8; i++) {
             TradeEvent trade = TradeEvent.builder()
-                    .tradeId("ANO" + counter.incrementAndGet())
+                    .tradeId(nextId())
                     .traderId(traderId)
                     .stock("AAPL")
                     .side(side)
@@ -95,5 +93,17 @@ public class AnomalyInjectorService {
             kafkaTemplate.send(tradeEventsTopic, traderId, trade);
             side = (side == TradeEvent.TradeSide.BUY) ? TradeEvent.TradeSide.SELL : TradeEvent.TradeSide.BUY;
         }
+        return traderId;
+    }
+
+    private String resolveTrader(String requested) {
+        if (requested != null && !requested.isBlank()) {
+            return requested;
+        }
+        return ANOMALY_TRADERS.get(random.nextInt(ANOMALY_TRADERS.size()));
+    }
+
+    private String nextId() {
+        return "ANO-" + startInstantMs + "-" + counter.incrementAndGet();
     }
 }
