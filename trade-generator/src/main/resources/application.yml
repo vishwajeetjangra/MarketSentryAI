@@ -27,6 +27,7 @@ marketsentry:
       trade-events: trade-events
   generator:
     rate-ms: 500
+    autostart: true        # false = boot paused, start via POST /generator/start
     anomaly-injection:
       enabled: false       # set to true to trigger surveillance rules
       burst-rate-ms: 60000
