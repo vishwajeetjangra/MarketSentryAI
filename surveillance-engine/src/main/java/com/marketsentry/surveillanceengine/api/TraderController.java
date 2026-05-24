@@ -35,13 +35,14 @@ public class TraderController {
     @GetMapping("/{id}/state")
     public Mono<Map<String, Object>> getTraderState(@PathVariable String id) {
         TraderState state = redisStateManager.getOrCreate(id);
-        long tradesInWindow = redisStateManager.getTradesInWindow(id);
+        long tradesInWindow    = redisStateManager.getTradesInWindow(id);
+        long reversalsInWindow = redisStateManager.getReversalsInWindow(id);
 
         return Mono.just(Map.of(
                 "traderId", id,
                 "tradesLast60s", tradesInWindow,
+                "reversalsLast10s", reversalsInWindow,
                 "avgTradeVolume", state.getAvgTradeVolume(),
-                "rapidReversalCount", state.getRapidReversalCount(),
                 "lastTradeSide", state.getLastTradeSide() != null ? state.getLastTradeSide() : "N/A",
                 "lastTradeTimestampMs", state.getLastTradeTimestampMs()
         ));

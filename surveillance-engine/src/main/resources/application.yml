@@ -47,3 +47,13 @@ marketsentry:
     topics:
       trade-events: trade-events
       surveillance-alerts: surveillance-alerts
+  surveillance:
+    alert-cooldown-seconds: 60   # per (trader, rule) cooldown to prevent alert storms
+    rules:
+      high-frequency:
+        threshold-trades-per-minute: 30
+      volume-spike:
+        multiplier: 5
+        warmup-trades: 10
+      rapid-reversal:
+        threshold-reversals: 5

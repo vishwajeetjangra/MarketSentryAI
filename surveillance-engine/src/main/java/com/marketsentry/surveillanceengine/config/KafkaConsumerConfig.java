@@ -1,7 +1,9 @@
 package com.marketsentry.surveillanceengine.config;
 
 import com.marketsentry.surveillanceengine.model.TradeEvent;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,7 @@ import org.springframework.util.backoff.FixedBackOff;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Configuration
 public class KafkaConsumerConfig {
 
@@ -40,6 +43,9 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // Defensive: Spring already defaults this to false, but make it explicit so
+        // it's obvious that offsets are committed by the listener container, not the broker poll loop.
+        config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
     }
 
@@ -54,9 +60,25 @@ public class KafkaConsumerConfig {
 
     @Bean
     public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> dlqKafkaTemplate) {
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(dlqKafkaTemplate);
-        // retry 3 times with 1 second interval before sending to DLQ
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                dlqKafkaTemplate,
+                (record, ex) -> {
+                    log.error("Routing poison record to DLQ | topic={} partition={} offset={} key={} cause={}",
+                            record.topic(), record.partition(), record.offset(), record.key(),
+                            ex.getMostSpecificCause().toString());
+                    return new org.apache.kafka.common.TopicPartition(record.topic() + "-dlq", record.partition());
+                });
+
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
+        // Non-retryable: bad payload will never deserialize, regardless of how many times we try.
+        // Send these straight to the DLQ on the first failure.
+        handler.addNotRetryableExceptions(
+                SerializationException.class,
+                org.springframework.kafka.support.serializer.DeserializationException.class,
+                IllegalArgumentException.class,
+                NullPointerException.class
+        );
+        return handler;
     }
 
     @Bean
