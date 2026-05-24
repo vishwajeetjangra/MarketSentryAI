@@ -15,7 +15,6 @@ public class TraderState {
 
     private String traderId;
     private BigDecimal avgTradeVolume;
-    private long rapidReversalCount;
     private String lastTradeSide;
     private long lastTradeTimestampMs;
 }
