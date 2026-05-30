@@ -66,15 +66,19 @@ services:
     networks:
       - marketsentry-net
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: marketsentry-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - marketsentry-net
+  # Ollama is run natively on the host (via `brew install ollama` + `brew services start ollama`)
+  # rather than in Docker. On macOS, native Ollama uses Apple Silicon's Metal GPU directly —
+  # sub-second inference vs minutes of CPU-only inference inside Docker's Linux VM.
+  # The Spring app still talks to http://localhost:11434, so no application code changes.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: marketsentry-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   networks:
+  #     - marketsentry-net
 
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -103,7 +107,7 @@ services:
 
 volumes:
   postgres-data:
-  ollama-data:
+  # ollama-data:   # no longer needed — Ollama runs natively on the host
   grafana-data:
 
 networks:
