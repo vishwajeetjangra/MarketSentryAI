@@ -41,6 +41,8 @@ marketsentry:
       surveillance-alerts: surveillance-alerts
   ollama:
     url: http://localhost:11434
-    model: mistral:7b
+    model: phi3:mini   # 3.8B params, ~2 GB RAM. Strong at instruction-following + reasoning-from-context,
+                       # which is what summarizing a structured alert needs. Fits comfortably alongside
+                       # macOS on an 8 GB M2.
     connect-timeout-ms: 5000
     read-timeout-ms: 60000

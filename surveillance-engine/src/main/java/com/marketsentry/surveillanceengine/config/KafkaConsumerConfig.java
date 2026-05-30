@@ -9,6 +9,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -16,6 +17,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
@@ -35,9 +37,16 @@ public class KafkaConsumerConfig {
 
     @Bean
     public ConsumerFactory<String, TradeEvent> consumerFactory() {
-        JsonDeserializer<TradeEvent> deserializer = new JsonDeserializer<>(TradeEvent.class);
-        deserializer.addTrustedPackages("*");
-        deserializer.setRemoveTypeHeaders(true);
+        JsonDeserializer<TradeEvent> jsonDeserializer = new JsonDeserializer<>(TradeEvent.class);
+        jsonDeserializer.addTrustedPackages("*");
+        // Don't trust the producer's __TypeId__ header — that class name lives in the
+        // producer's package and won't resolve here. Use our local TradeEvent class instead.
+        jsonDeserializer.setUseTypeHeaders(false);
+
+        // Wrap in ErrorHandlingDeserializer so deserialization failures surface as
+        // exceptions the DefaultErrorHandler can route to the DLQ. Without this wrapper,
+        // a bad message crashes the consumer poll loop entirely.
+        ErrorHandlingDeserializer<TradeEvent> valueDeserializer = new ErrorHandlingDeserializer<>(jsonDeserializer);
 
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
@@ -46,7 +55,7 @@ public class KafkaConsumerConfig {
         // Defensive: Spring already defaults this to false, but make it explicit so
         // it's obvious that offsets are committed by the listener container, not the broker poll loop.
         config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), deserializer);
+        return new DefaultKafkaConsumerFactory<>(config, new StringDeserializer(), valueDeserializer);
     }
 
     @Bean
@@ -65,7 +74,7 @@ public class KafkaConsumerConfig {
                 (record, ex) -> {
                     log.error("Routing poison record to DLQ | topic={} partition={} offset={} key={} cause={}",
                             record.topic(), record.partition(), record.offset(), record.key(),
-                            ex.getMostSpecificCause().toString());
+                            NestedExceptionUtils.getMostSpecificCause(ex).toString());
                     return new org.apache.kafka.common.TopicPartition(record.topic() + "-dlq", record.partition());
                 });
 
