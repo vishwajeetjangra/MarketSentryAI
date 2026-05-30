@@ -4,11 +4,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
 import java.util.Map;
 
+/**
+ * Thin wrapper around the Ollama HTTP API.
+ *
+ * Failure semantics: any network/timeout/HTTP/empty-response error is wrapped
+ * in {@link OllamaCallException} (a RuntimeException) and rethrown. That lets
+ * the Kafka consumer's configured retry + DLQ machinery do its job — earlier
+ * versions of this class swallowed everything and returned a fallback string,
+ * which silently disabled the retry handler.
+ */
 @Slf4j
 @Component
 public class OllamaClient {
@@ -32,21 +42,26 @@ public class OllamaClient {
     }
 
     public String generate(String prompt) {
+        Map<String, Object> request = Map.of(
+                "model", model,
+                "prompt", prompt,
+                "stream", false
+        );
+        Map<?, ?> response;
         try {
-            Map<String, Object> request = Map.of(
-                    "model", model,
-                    "prompt", prompt,
-                    "stream", false
-            );
-            Map<?, ?> response = restTemplate.postForObject(
-                    ollamaUrl + "/api/generate", request, Map.class);
-            if (response != null && response.containsKey("response")) {
-                return (String) response.get("response");
-            }
-            log.warn("Ollama returned no 'response' field for model {}", model);
-        } catch (Exception e) {
-            log.error("Ollama request failed ({}): {}", e.getClass().getSimpleName(), e.getMessage());
+            response = restTemplate.postForObject(ollamaUrl + "/api/generate", request, Map.class);
+        } catch (RestClientException e) {
+            throw new OllamaCallException("Ollama request failed", e);
         }
-        return "AI summary unavailable.";
+        if (response == null || !(response.get("response") instanceof String text) || text.isBlank()) {
+            throw new OllamaCallException("Ollama returned an empty or malformed response for model " + model);
+        }
+        return text;
+    }
+
+    /** Wrapper exception so consumers can classify and route Ollama failures. */
+    public static class OllamaCallException extends RuntimeException {
+        public OllamaCallException(String message) { super(message); }
+        public OllamaCallException(String message, Throwable cause) { super(message, cause); }
     }
 }
