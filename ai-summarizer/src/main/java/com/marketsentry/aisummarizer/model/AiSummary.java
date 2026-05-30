@@ -20,7 +20,7 @@ public class AiSummary {
     @Column(name = "summary_id")
     private String summaryId;
 
-    @Column(name = "alert_id", nullable = false)
+    @Column(name = "alert_id", nullable = false, unique = true)
     private String alertId;
 
     @Column(name = "ai_summary", columnDefinition = "TEXT")
