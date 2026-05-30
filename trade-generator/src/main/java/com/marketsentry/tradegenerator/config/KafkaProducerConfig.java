@@ -28,6 +28,10 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(ProducerConfig.ACKS_CONFIG, "all");
         config.put(ProducerConfig.RETRIES_CONFIG, 3);
+        // Don't embed the producer's FQCN in a __TypeId__ header. Consumers in other
+        // services have their own TradeEvent class in a different package; relying on
+        // type headers would tightly couple their classpaths to ours.
+        config.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         return new DefaultKafkaProducerFactory<>(config);
     }
 

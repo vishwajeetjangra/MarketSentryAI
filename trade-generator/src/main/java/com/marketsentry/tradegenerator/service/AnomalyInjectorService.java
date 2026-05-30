@@ -43,12 +43,15 @@ public class AnomalyInjectorService {
         String stock = STOCKS.get(random.nextInt(STOCKS.size()));
         log.warn("Injecting HIGH_FREQUENCY_SPIKE for trader: {}", traderId);
 
+        // Pure HIGH_FREQUENCY burst: all same-side trades, simulating an aggressive
+        // accumulator. Alternating sides would also (incorrectly) fire the
+        // RAPID_BUY_SELL_REVERSAL rule, which would contaminate the test signal.
         for (int i = 0; i < 35; i++) {
             TradeEvent trade = TradeEvent.builder()
                     .tradeId(nextId())
                     .traderId(traderId)
                     .stock(stock)
-                    .side(i % 2 == 0 ? TradeEvent.TradeSide.BUY : TradeEvent.TradeSide.SELL)
+                    .side(TradeEvent.TradeSide.BUY)
                     .quantity(100L)
                     .price(new BigDecimal("200.00"))
                     .timestamp(LocalDateTime.now())
