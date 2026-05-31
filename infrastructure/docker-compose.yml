@@ -100,6 +100,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
       - prometheus
     networks:
