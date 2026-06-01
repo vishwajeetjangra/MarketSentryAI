@@ -27,8 +27,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests that exercise RedisStateManager against a real Redis instance
  * via Testcontainers. We wire up the templates by hand rather than booting the full
  * Spring context — this isolates Redis behavior from Kafka, JPA, and the rest of the app.
+ *
+ * disabledWithoutDocker = true → JUnit cleanly skips this class with a clear message
+ * when the Docker daemon isn't reachable, instead of failing the build. Matches the
+ * skip policy used for the default Spring smoke tests.
  */
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class RedisStateManagerIntegrationTest {
 
     @Container
